@@ -1,7 +1,7 @@
 package com.scathon.spark.rdd
 
 import org.apache.spark.storage.StorageLevel
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.{RangePartitioner, SparkConf, SparkContext}
 import org.junit.Test
 
 class RddDemo {
@@ -11,12 +11,73 @@ class RddDemo {
 
 
    @Test
+   def repartitionAndSortWithinPartitions(): Unit = {
+      val randRDD = sc.parallelize(List((2, "cat"), (6, "mouse"), (7, "cup"), (3, "book"), (4, "tv"), (1, "screen"), (5, "heater")), 3)
+      val rPartitioner = new RangePartitioner(3, randRDD)
+      val partitioned = randRDD.partitionBy(rPartitioner)
+
+      def myfunc(index: Int, iter: Iterator[(Int, String)]): Iterator[String] = {
+         iter.map(x => "[partID: " + index + ", val: 0" + x + "]")
+      }
+
+      partitioned.mapPartitionsWithIndex(myfunc).collect.foreach(println)
+   }
+
+   /**
+     * 重新分区
+     */
+   @Test
+   def repartition(): Unit = {
+      val rdd = sc.parallelize(List(1, 2, 10, 4, 5, 2, 1, 1, 1), 3)
+      println(rdd.partitions.length)
+      val rdd2 = rdd.repartition(4)
+      println(rdd2.partitions.length)
+   }
+
+   /**
+     * 通过key进行reduce操作。一般操作的是(k,v)tuple
+     */
+   @Test
+   def reduceByKey(): Unit = {
+      val rdd1 = sc.parallelize(List("linhd", "scathon", "kobe", "james"), 3)
+      val rdd2 = rdd1.keyBy(_.length)
+      rdd2.reduceByKey(_ + ":" + _).collect.foreach(println)
+   }
+
+   @Test
+   def reduce(): Unit = {
+      val rdd1 = sc.parallelize(List("linhd", "scathon", "kobe", "james"), 3)
+      val rdd2 = rdd1.reduce(_ + ":" + _)
+      println(rdd2)
+   }
+
+   /**
+     * 根据权重数组将RDD随机分割为多个较小的RDDs，
+     * 权重数组指定分配给每个较小RDD的数据元素总数的百分比。
+     * 注意，每个较小的RDD的实际大小仅近似等于百分比
+     */
+   @Test
    def randomSplit(): Unit = {
       val y = sc.parallelize(1 to 10)
       val splits = y.randomSplit(Array(0.6, 0.4), seed = 11L)
       val training = splits(0)
       val test = splits(1)
-      training.collect
+      training.collect.foreach(println)
+      println("=====================")
+      test.collect.foreach(println)
+      println("====================")
+      val z = sc.parallelize(1 to 10)
+      val splits1 = z.randomSplit(Array(0.1, 0.3, 0.6))
+      val rdd1 = splits1(0)
+      val rdd2 = splits1(1)
+      val rdd3 = splits1(2)
+      rdd1.collect.foreach(println)
+      println("--------------")
+      rdd2.collect.foreach(println)
+      println("**************")
+      rdd3.collect.foreach(println)
+      println("^^^^^^^^^^^^^^")
+
    }
 
    /**

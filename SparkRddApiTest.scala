@@ -4,22 +4,212 @@ import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{RangePartitioner, SparkConf, SparkContext}
 import org.junit.Test
 
+/**
+  * @Description Spark RDD Learning
+  * @Auhtor linhuadong(ScathonLin)
+  * @Note Spark Test Environmemt->2.2.2
+  *       Local Mod + Spark Shell
+  *       阅读代码的时候，从后往前看，具体的RDD是按照字母顺序来的
+  */
 class RddDemo {
   val conf = new SparkConf().setAppName("rdd").setMaster("local[*]")
   val sc = new SparkContext(conf)
   sc.setLogLevel("ERROR")
 
+
+  /**
+    * 返回运行的DEBUG信息
+    */
+  @Test
+  def toDebugString(): Unit = {
+    val a = sc.parallelize(1 to 9, 3)
+    val b = sc.parallelize(1 to 3, 3)
+    val c = a.subtract(b)
+    c.toDebugString
+    /*
+    res9: String =
+      (3) MapPartitionsRDD[26] at subtract at <console>:28 []
+       |  SubtractedRDD[25] at subtract at <console>:28 []
+       +-(3) MapPartitionsRDD[23] at subtract at <console>:28 []
+       |  |  ParallelCollectionRDD[21] at parallelize at <console>:24 []
+       +-(3) MapPartitionsRDD[24] at subtract at <console>:28 []
+          |  ParallelCollectionRDD[22] at parallelize at <console>:24 []
+     */
+  }
+
+  /**
+    * 返回确定数量的抽样数据。注意，返回的是Array而不是RDD，然后内存会随机打乱返回的元素的顺序
+    */
+  @Test
+  def takeSample(): Unit = {
+    val x = sc.parallelize(1 to 1000, 3)
+    x.takeSample(true, 100, 1)
+    //spark shell 运行结果
+    /*
+    res8: Array[Int] = Array(764, 815, 274, 452, 39, 538, 238, 544, 475, 480, 416, 868, 517, 363, 39, 316, 37,
+     90, 210, 202, 335, 773, 572, 243, 354, 305, 584, 820, 528, 749, 188, 366, 913, 667, 214, 540, 807, 738,
+     204, 968, 39, 863, 541, 703, 397, 489, 172, 29, 211, 542, 600, 977, 941, 923, 900, 485, 575, 650, 258, 31,
+      737, 155, 685, 562, 223, 675, 330, 864, 291, 536, 392, 108, 188, 408, 475, 565, 873, 504, 34, 343, 79, 493,
+       868, 974, 973, 110, 587, 457, 739, 745, 977, 800, 783, 59, 276, 987, 160, 351, 515, 901)
+     */
+  }
+
+  /**
+    * 对RDD里面的元素进行排序然后取出前n个元素
+    */
+  @Test
+  def takeOrdered(): Unit = {
+    val b = sc.parallelize(List("dog", "cat", "ape", "salmon", "gnu"), 2)
+    b.takeOrdered(2).foreach(println)
+  }
+
+  /**
+    * 抽取RDD中前n个元素
+    */
+  @Test
+  def take(): Unit = {
+    val b = sc.parallelize(List("dog", "cat", "ape", "salmon", "gnu"), 2)
+    b.take(2).foreach(printf("%-3s", _))
+    println()
+    val c = sc.parallelize(1 to 10000, 5000)
+    c.take(100).foreach(printf("%-3d", _))
+    println()
+  }
+
+  @Test
+  def sum(): Unit = {
+    //....
+  }
+
+  /**
+    * 根据key求解差集
+    */
+  @Test
+  def subtractByKey(): Unit = {
+    val a = sc.parallelize(List("dog", "tiger", "lion", "cat", "spider"), 2)
+    val b = a.keyBy(_.length)
+    val c = sc.parallelize(List("ant", "falcon", "squid"), 2)
+    val d = c.keyBy(_.length)
+    b.subtractByKey(d).collect.foreach(println)
+  }
+
+  /**
+    * 求差集 A-B
+    */
+  @Test
+  def subtract(): Unit = {
+    val a = sc.parallelize(1 to 9, 3)
+    val b = sc.parallelize(1 to 3, 3)
+    val c = a.subtract(b)
+    c.collect.foreach(println)
+  }
+
+  /**
+    * 求解标准差
+    */
+  @Test
+  def stdev(): Unit = {
+    val d = sc.parallelize(List(0.0, 1.0), 3)
+    println(d.stats())
+    println(d.stdev())
+  }
+
+  /**
+    * 根据key进行排序
+    */
+  @Test
+  def sortByKey(): Unit = {
+    val a = sc.parallelize(List("dog", "cat", "owl", "gnu", "ant"), 2)
+    val b = sc.parallelize(1 to a.count.toInt, 2)
+    val c = a.zip(b)
+    c.sortByKey(false).collect.foreach(println)
+    println()
+    c.sortByKey(true).collect.foreach(println)
+    println("one more complex example...")
+    val d = sc.parallelize(1 to 100, 5)
+    val e = d.cartesian(a)
+    //进行数据抽样
+    val f = sc.parallelize(e.takeSample(true, 5, 13), 2)
+    val g = f.sortByKey(false)
+    g.collect.foreach(println)
+  }
+
+  /**
+    * 排序函数
+    * 可以指定排序规则
+    */
+  @Test
+  def sortBy(): Unit = {
+    val y = sc.parallelize(List(5, 7, 1, 3, 2, 1))
+    // 根据数值大小排序
+    y.sortBy(item => item, true).collect.foreach(printf("%-2d", _))
+    println()
+    val z = sc.parallelize(List("linhd", "scathon", "scala", "javascript", "python", "go", "c"))
+    val sortFunction = (elem: String) => elem.length
+    // 根据字符串的长度作为排序依据,降序排序
+    z.sortBy(sortFunction, ascending = false).collect.foreach(printf("%-12s", _))
+  }
+
+  /**
+    * 同时计算平均数，元素个数，标准差指标的数据
+    */
+  @Test
+  def stats(): Unit = {
+    val x = sc.parallelize(List(1.0, 2.0, 3.0, 5.0), 2)
+    println(x.stats())
+  }
+
+  /**
+    * 以hadoop file的文件形式保存
+    */
+  @Test
+  def saveAsHadoopFile(): Unit = {
+    //...
+  }
+
+
+  /**
+    * 以文本文件的形式保存文件
+    */
+  @Test
+  def saveAsTextFile(): Unit = {
+    //....
+  }
+
+  /**
+    * 以序列文件的形式保存文件
+    */
+  @Test
+  def saveAsSequenceFIle(): Unit = {
+    val v = sc.parallelize(Array(("pwl", 3), ("gnu", 4), ("dog", 1), ("cat", 2), ("ant", 5)), 2)
+    v.saveAsSequenceFile("hd_seq_file")
+  }
+
+  /**
+    * 以对象文件的形式保存文件
+    */
+  @Test
+  def saveAsObjectFile(): Unit = {
+    val x = sc.parallelize(1 to 100, 3)
+    x.saveAsObjectFile("objectFile")
+    val y = sc.objectFile[Int]("objectFile")
+    y.collect.foreach(println)
+  }
+
   /**
     * 根据key进行抽样，通过指定期望的key出现的比率进行抽样。
     */
   @Test
-  def sampleByKey(): Unit ={
-    val randRDD = sc.parallelize(List((7,"cat"),(6,"mouse"),(7,"cup"),(6,"book"),(7,"tv"),(6,"screen"),(7,"heater")))
+  def sampleByKey(): Unit = {
+    val randRDD = sc.parallelize(List((7, "cat"), (6, "mouse"), (7, "cup"), (6, "book"), (7, "tv"), (6, "screen"), (7, "heater")))
     // key是7出现的概率是0.4，key是6出现的概率是0.6
-    val sampleMap = List((7,0.4),(6,0.6)).toMap
-    randRDD.sampleByKey(false,sampleMap,42).collect.foreach(println)
+    val sampleMap = List((7, 0.4), (6, 0.6)).toMap
+    randRDD.sampleByKey(false, sampleMap, 42).collect.foreach(println)
   }
 
+  /**
+    * 抽样数据
+    */
   @Test
   def sample(): Unit = {
     val a = sc.parallelize(1 to 10000, 3)
